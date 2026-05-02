@@ -1,0 +1,628 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Parola Gücü Analiz Aracı</title>
+
+    <!-- Google Fonts: Syne (başlık) + JetBrains Mono (kod/parola) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
+
+    <style>
+        /* ─────────────────────────────────────────────
+           TASARIM SİSTEMİ — CSS Değişkenleri
+        ───────────────────────────────────────────── */
+        :root {
+            --bg-primary:    #09090f;
+            --bg-card:       #12121c;
+            --bg-input:      #1a1a2e;
+            --border:        #2a2a4a;
+            --border-active: #6366f1;
+            --text-primary:  #f0f0ff;
+            --text-secondary:#8888aa;
+            --accent:        #6366f1;
+            --accent-glow:   rgba(99, 102, 241, 0.35);
+
+            /* Güç renkleri */
+            --c-very-weak: #ef4444;
+            --c-weak:      #f97316;
+            --c-fair:      #eab308;
+            --c-strong:    #22c55e;
+            --c-very-strong:#0ea5e9;
+        }
+
+        /* ─────────────────────────────────────────────
+           TEMEL SIFIRLAR & LAYOUT
+        ───────────────────────────────────────────── */
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            font-family: 'Syne', sans-serif;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 2rem 1rem;
+            /* Izgara arka plan deseni */
+            background-image:
+                linear-gradient(rgba(99,102,241,.04) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(99,102,241,.04) 1px, transparent 1px);
+            background-size: 48px 48px;
+        }
+
+        /* ─────────────────────────────────────────────
+           ANA KART
+        ───────────────────────────────────────────── */
+        .card {
+            width: 100%;
+            max-width: 680px;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            padding: 2.5rem 2.5rem 2rem;
+            box-shadow: 0 0 80px rgba(99,102,241,.08);
+            animation: slideIn 0.5s cubic-bezier(.22,1,.36,1) both;
+        }
+
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateY(24px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+
+        /* ─────────────────────────────────────────────
+           BAŞLIK
+        ───────────────────────────────────────────── */
+        .header {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+
+        .header-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: .5rem;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: .72rem;
+            color: var(--accent);
+            background: rgba(99,102,241,.12);
+            border: 1px solid rgba(99,102,241,.3);
+            border-radius: 100px;
+            padding: .3rem 1rem;
+            margin-bottom: 1rem;
+            letter-spacing: .1em;
+        }
+
+        .header-badge::before {
+            content: '';
+            width: 6px; height: 6px;
+            background: var(--accent);
+            border-radius: 50%;
+            animation: pulse 2s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; box-shadow: 0 0 0 0 var(--accent-glow); }
+            50%       { opacity: .6; box-shadow: 0 0 0 6px transparent; }
+        }
+
+        h1 {
+            font-size: clamp(1.5rem, 4vw, 2.1rem);
+            font-weight: 800;
+            line-height: 1.15;
+            letter-spacing: -.02em;
+            background: linear-gradient(135deg, #fff 30%, #8888cc);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .header p {
+            margin-top: .6rem;
+            color: var(--text-secondary);
+            font-size: .9rem;
+        }
+
+        /* ─────────────────────────────────────────────
+           PAROLA GİRİŞ ALANI
+        ───────────────────────────────────────────── */
+        .input-wrapper {
+            position: relative;
+            margin-bottom: 1.5rem;
+        }
+
+        .input-wrapper label {
+            display: block;
+            font-size: .8rem;
+            font-weight: 700;
+            letter-spacing: .08em;
+            text-transform: uppercase;
+            color: var(--text-secondary);
+            margin-bottom: .5rem;
+        }
+
+        .input-row {
+            display: flex;
+            gap: .6rem;
+        }
+
+        #passwordInput {
+            flex: 1;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 1rem;
+            background: var(--bg-input);
+            border: 1.5px solid var(--border);
+            border-radius: 12px;
+            color: var(--text-primary);
+            padding: .85rem 1.1rem;
+            outline: none;
+            transition: border-color .2s, box-shadow .2s;
+        }
+
+        #passwordInput:focus {
+            border-color: var(--border-active);
+            box-shadow: 0 0 0 3px var(--accent-glow);
+        }
+
+        /* Göster/Gizle düğmesi */
+        .toggle-btn {
+            background: var(--bg-input);
+            border: 1.5px solid var(--border);
+            border-radius: 12px;
+            color: var(--text-secondary);
+            cursor: pointer;
+            padding: 0 1rem;
+            font-size: 1.1rem;
+            transition: border-color .2s, color .2s;
+        }
+
+        .toggle-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+        /* ─────────────────────────────────────────────
+           GÜÇ ÇUBUĞU
+        ───────────────────────────────────────────── */
+        .strength-section {
+            margin-bottom: 1.5rem;
+        }
+
+        .strength-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+            margin-bottom: .6rem;
+        }
+
+        .strength-header span:first-child {
+            font-size: .78rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: .08em;
+            color: var(--text-secondary);
+        }
+
+        #strengthLabel {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: .82rem;
+            font-weight: 600;
+            transition: color .3s;
+        }
+
+        .bar-track {
+            height: 8px;
+            background: rgba(255,255,255,.07);
+            border-radius: 100px;
+            overflow: hidden;
+        }
+
+        #strengthBar {
+            height: 100%;
+            width: 0%;
+            border-radius: 100px;
+            transition: width .5s cubic-bezier(.22,1,.36,1), background-color .3s;
+            position: relative;
+        }
+
+        #strengthBar::after {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(90deg, transparent 60%, rgba(255,255,255,.25));
+        }
+
+        /* ─────────────────────────────────────────────
+           METRİK KARTLARI
+        ───────────────────────────────────────────── */
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: .75rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .metric-card {
+            background: rgba(255,255,255,.03);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 1rem 1.1rem;
+            transition: border-color .3s;
+        }
+
+        .metric-card:hover { border-color: rgba(99,102,241,.4); }
+
+        .metric-label {
+            font-size: .7rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: .1em;
+            color: var(--text-secondary);
+            margin-bottom: .3rem;
+        }
+
+        .metric-value {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: .95rem;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .metric-value.highlight {
+            color: var(--accent);
+        }
+
+        /* ─────────────────────────────────────────────
+           KARAKTER ÖZELLİKLERİ ROZETLER
+        ───────────────────────────────────────────── */
+        .char-checks {
+            display: flex;
+            flex-wrap: wrap;
+            gap: .5rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .check-badge {
+            display: flex;
+            align-items: center;
+            gap: .4rem;
+            font-size: .78rem;
+            font-weight: 600;
+            padding: .35rem .75rem;
+            border-radius: 100px;
+            border: 1px solid;
+            transition: all .3s;
+        }
+
+        .check-badge.pass {
+            color: #22c55e;
+            border-color: rgba(34,197,94,.35);
+            background: rgba(34,197,94,.08);
+        }
+
+        .check-badge.fail {
+            color: var(--text-secondary);
+            border-color: var(--border);
+            background: transparent;
+            opacity: .55;
+        }
+
+        /* ─────────────────────────────────────────────
+           SÖZLÜK UYARISI
+        ───────────────────────────────────────────── */
+        #dictWarning {
+            display: none;
+            background: rgba(239,68,68,.1);
+            border: 1px solid rgba(239,68,68,.35);
+            border-radius: 10px;
+            padding: .9rem 1.1rem;
+            font-size: .85rem;
+            color: #fca5a5;
+            margin-bottom: 1.5rem;
+        }
+
+        /* ─────────────────────────────────────────────
+           ÖNERİLER
+        ───────────────────────────────────────────── */
+        .suggestions-section {
+            border-top: 1px solid var(--border);
+            padding-top: 1.2rem;
+        }
+
+        .suggestions-label {
+            font-size: .78rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: .08em;
+            color: var(--text-secondary);
+            margin-bottom: .75rem;
+        }
+
+        #suggestionsList {
+            list-style: none;
+            display: flex;
+            flex-direction: column;
+            gap: .4rem;
+        }
+
+        #suggestionsList li {
+            font-size: .85rem;
+            color: #c0c0e0;
+            padding-left: 1.2rem;
+            position: relative;
+        }
+
+        #suggestionsList li::before {
+            content: '›';
+            position: absolute;
+            left: 0;
+            color: var(--accent);
+            font-weight: 700;
+        }
+
+        /* ─────────────────────────────────────────────
+           YÜKLENİYOR / BOŞTA DURUMU
+        ───────────────────────────────────────────── */
+        #emptyState {
+            text-align: center;
+            padding: 2rem 0;
+            color: var(--text-secondary);
+            font-size: .9rem;
+        }
+
+        #emptyState .icon {
+            font-size: 2.5rem;
+            margin-bottom: .75rem;
+            display: block;
+            filter: grayscale(1) opacity(.4);
+        }
+
+        #resultContainer { display: none; }
+
+        /* ─────────────────────────────────────────────
+           FOOTER
+        ───────────────────────────────────────────── */
+        .footer {
+            text-align: center;
+            margin-top: 1.5rem;
+            font-size: .72rem;
+            color: rgba(136,136,170,.5);
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        /* ─────────────────────────────────────────────
+           RESPONSIVE
+        ───────────────────────────────────────────── */
+        @media (max-width: 480px) {
+            .card { padding: 1.5rem 1.25rem; }
+            .metrics-grid { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="card">
+
+    <!-- ── BAŞLIK ── -->
+    <div class="header">
+        <div class="header-badge">CANLI ANALİZ</div>
+        <h1>Parola Gücü<br/>Analiz Aracı</h1>
+        <p>Parolanız yazıldıkça gerçek zamanlı güvenlik analizi yapılır</p>
+    </div>
+
+    <!-- ── GİRİŞ ── -->
+    <div class="input-wrapper">
+        <label for="passwordInput">Parolanızı girin</label>
+        <div class="input-row">
+            <input
+                    type="password"
+                    id="passwordInput"
+                    placeholder="Parolanızı buraya yazın…"
+                    autocomplete="new-password"
+                    spellcheck="false"
+            />
+            <button class="toggle-btn" id="toggleBtn" title="Parolayı göster/gizle">👁️</button>
+        </div>
+    </div>
+
+    <!-- ── GÜÇ ÇUBUĞU ── -->
+    <div class="strength-section">
+        <div class="strength-header">
+            <span>Parola Gücü</span>
+            <span id="strengthLabel" style="color: var(--text-secondary)">—</span>
+        </div>
+        <div class="bar-track">
+            <div id="strengthBar"></div>
+        </div>
+    </div>
+
+    <!-- ── BOŞ DURUM ── -->
+    <div id="emptyState">
+        <span class="icon">🔐</span>
+        Parola yazmaya başlayın — analiz otomatik başlayacak
+    </div>
+
+    <!-- ── SONUÇLAR ── -->
+    <div id="resultContainer">
+
+        <!-- Metrik kartları -->
+        <div class="metrics-grid">
+            <div class="metric-card">
+                <div class="metric-label">Uzunluk</div>
+                <div class="metric-value" id="metricLength">—</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-label">Entropi</div>
+                <div class="metric-value highlight" id="metricEntropy">—</div>
+            </div>
+            <div class="metric-card" style="grid-column: 1 / -1;">
+                <div class="metric-label">🕐 Tahmini Kırılma Süresi (10B deneme/sn)</div>
+                <div class="metric-value" id="metricCrack">—</div>
+            </div>
+        </div>
+
+        <!-- Karakter özellikleri -->
+        <div class="char-checks" id="charChecks">
+            <div class="check-badge fail" id="chkUpper">A–Z Büyük Harf</div>
+            <div class="check-badge fail" id="chkLower">a–z Küçük Harf</div>
+            <div class="check-badge fail" id="chkDigit">0–9 Rakam</div>
+            <div class="check-badge fail" id="chkSpecial">!@# Özel Karakter</div>
+        </div>
+
+        <!-- Sözlük uyarısı -->
+        <div id="dictWarning"></div>
+
+        <!-- Öneriler -->
+        <div class="suggestions-section">
+            <div class="suggestions-label">Güvenlik Önerileri</div>
+            <ul id="suggestionsList"></ul>
+        </div>
+
+    </div><!-- /resultContainer -->
+
+</div><!-- /card -->
+
+<div class="footer">
+    Password Strength Analyzer &nbsp;·&nbsp; Spring Boot REST API &nbsp;·&nbsp; Shannon Entropy Model
+</div>
+
+<!-- ─────────────────────────────────────────────────────────────
+     JAVASCRIPT — Gerçek Zamanlı API Entegrasyonu
+───────────────────────────────────────────────────────────────── -->
+<script>
+    "use strict";
+
+    // ── Konfigürasyon ──────────────────────────────────────────
+    const API_URL   = "/api/analyze"; // Spring Boot aynı sunucuda olduğu için göreceli yol
+    const DEBOUNCE  = 300;            // ms — her tuş vuruşunda değil, 300 ms sonra istek at
+
+    // ── DOM Referansları ────────────────────────────────────────
+    const input         = document.getElementById("passwordInput");
+    const toggleBtn     = document.getElementById("toggleBtn");
+    const strengthBar   = document.getElementById("strengthBar");
+    const strengthLabel = document.getElementById("strengthLabel");
+    const emptyState    = document.getElementById("emptyState");
+    const resultCont    = document.getElementById("resultContainer");
+    const metricLength  = document.getElementById("metricLength");
+    const metricEntropy = document.getElementById("metricEntropy");
+    const metricCrack   = document.getElementById("metricCrack");
+    const chkUpper      = document.getElementById("chkUpper");
+    const chkLower      = document.getElementById("chkLower");
+    const chkDigit      = document.getElementById("chkDigit");
+    const chkSpecial    = document.getElementById("chkSpecial");
+    const dictWarning   = document.getElementById("dictWarning");
+    const suggestionsList = document.getElementById("suggestionsList");
+
+    // ── Göster / Gizle ─────────────────────────────────────────
+    toggleBtn.addEventListener("click", () => {
+        const isPass = input.type === "password";
+        input.type   = isPass ? "text" : "password";
+        toggleBtn.textContent = isPass ? "🙈" : "👁️";
+    });
+
+    // ── Debounce yardımcısı ─────────────────────────────────────
+    // Kullanıcı yazmayı bıraktıktan DEBOUNCE ms sonra API çağrısı yapar.
+    // Aşırı sunucu isteği atmayı önler.
+    let debounceTimer = null;
+    function debounce(fn, delay) {
+        return function(...args) {
+            clearTimeout(debounceTimer);
+            debounceTimer = setTimeout(() => fn.apply(this, args), delay);
+        };
+    }
+
+    // ── API Çağrısı ─────────────────────────────────────────────
+    async function fetchAnalysis(password) {
+        try {
+            const response = await fetch(API_URL, {
+                method : "POST",
+                headers: { "Content-Type": "application/json" },
+                body   : JSON.stringify({ password })
+            });
+
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            return await response.json();
+
+        } catch (err) {
+            // Ağ hatası veya sunucu kapalıysa kullanıcıya bildirim ver
+            console.error("API hatası:", err);
+            return null;
+        }
+    }
+
+    // ── Arayüzü Güncelle ────────────────────────────────────────
+    function updateUI(data) {
+        if (!data) return;
+
+        // 1. Güç çubuğu
+        strengthBar.style.width           = data.score + "%";
+        strengthBar.style.backgroundColor = data.strengthColor;
+        strengthLabel.textContent          = data.strengthLabel;
+        strengthLabel.style.color          = data.strengthColor;
+
+        // 2. Metrikler
+        metricLength.textContent  = data.length + " karakter";
+        metricEntropy.textContent = data.entropyBits.toFixed(2) + " bit";
+        metricCrack.textContent   = data.crackTimeEstimate;
+
+        // 3. Karakter rozetleri
+        setBadge(chkUpper,   data.hasUpperCase,   "A–Z Büyük Harf");
+        setBadge(chkLower,   data.hasLowerCase,   "a–z Küçük Harf");
+        setBadge(chkDigit,   data.hasDigit,       "0–9 Rakam");
+        setBadge(chkSpecial, data.hasSpecialChar, "!@# Özel Karakter");
+
+        // 4. Sözlük uyarısı
+        if (data.commonPassword && data.dictionaryWarning) {
+            dictWarning.textContent = data.dictionaryWarning;
+            dictWarning.style.display = "block";
+        } else {
+            dictWarning.style.display = "none";
+        }
+
+        // 5. Öneriler
+        suggestionsList.innerHTML = "";
+        (data.suggestions || []).forEach(tip => {
+            const li = document.createElement("li");
+            li.textContent = tip;
+            suggestionsList.appendChild(li);
+        });
+
+        // 6. Boş durum / sonuç görünürlüğü
+        emptyState.style.display  = "none";
+        resultCont.style.display  = "block";
+    }
+
+    /** Rozeti geçti/geçmedi olarak işaretle */
+    function setBadge(el, passed, label) {
+        el.className = "check-badge " + (passed ? "pass" : "fail");
+        el.textContent = (passed ? "✓ " : "") + label;
+    }
+
+    /** Boş ekrana dön */
+    function resetUI() {
+        strengthBar.style.width = "0%";
+        strengthLabel.textContent = "—";
+        strengthLabel.style.color = "var(--text-secondary)";
+        emptyState.style.display = "block";
+        resultCont.style.display = "none";
+        dictWarning.style.display = "none";
+    }
+
+    // ── Olay Dinleyici ───────────────────────────────────────────
+    const handleInput = debounce(async (e) => {
+        const password = e.target.value;
+
+        if (!password) {
+            resetUI();
+            return;
+        }
+
+        const data = await fetchAnalysis(password);
+        updateUI(data);
+
+    }, DEBOUNCE);
+
+    input.addEventListener("input", handleInput);
+</script>
+
+</body>
+</html>
